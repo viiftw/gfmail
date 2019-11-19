@@ -1,26 +1,25 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"io/ioutil"
-	// "log"
 	"crypto/tls"
-	"time"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
-	"encoding/json"
 	"sync"
-	"flag"
-	"os"
+	"time"
 )
 
 // Get create a get request
 func Get(query, url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 
 	req.Header.Add("User-Agent", "GoodBoy")
@@ -32,31 +31,33 @@ func Get(query, url string) ([]byte, error) {
 
 	req.URL.RawQuery = query
 	trt := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
 		MaxIdleConns:       10,
 		IdleConnTimeout:    30 * time.Second,
 		DisableCompression: true,
-	}	
+	}
 	client := &http.Client{Transport: trt}
 	resp, err := client.Do(req)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
-	// log.Println(resp)
+
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	// log.Println(string(body))
+	if err != nil {
+		return nil, err
+	}
+
 	return body, nil
 }
 
 func main() {
-	// user := "pfmooney"
 	username := flag.String("u", "", "Username want to find mails")
 
 	flag.Parse()
 	if *username == "" {
-			fmt.Println("-u username is required")
-			os.Exit(1)
+		fmt.Println("-u username is required")
+		os.Exit(1)
 	}
 
 	fmt.Println(*username)
@@ -93,7 +94,7 @@ func findFromRecentCommits(user string) {
 	// regular expression pattern
 	reg := regexp.MustCompile(`"(email)":"([^"]+)"`)
 	stringArr := unique(reg.FindAllString(string(byteBody), -1))
-	for i := 0; i< len(stringArr); i++ {	
+	for i := 0; i < len(stringArr); i++ {
 		tmp := strings.ReplaceAll(stringArr[i], `"email":"`, "")
 		fmt.Println(tmp[:len(tmp)-1])
 	}
@@ -101,17 +102,17 @@ func findFromRecentCommits(user string) {
 
 func unique(stringSlice []string) []string {
 	keys := make(map[string]bool)
-	list := []string{} 
+	list := []string{}
 	for _, entry := range stringSlice {
-			if _, value := keys[entry]; !value {
-					keys[entry] = true
-					list = append(list, entry)
-			}
-	}    
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
 	return list
 }
 
-func getAllRepos(user string) ([]string, error){
+func getAllRepos(user string) ([]string, error) {
 	userURL := "https://api.github.com/users/" + user + "/repos"
 	q := url.Values{}
 	q.Add("type", "owner")
@@ -142,13 +143,15 @@ func findFromRecentActivity(user string) {
 		go findFromRepo(user, repo)
 	}
 	wg.Wait()
-	for i := 0; i< len(emailFromRepos); i++ {	
+	for i := 0; i < len(emailFromRepos); i++ {
 		fmt.Println(emailFromRepos[i])
 	}
 }
+
 var wg sync.WaitGroup
 var emailFromRepos []string
 var mutex = &sync.Mutex{}
+
 func findFromRepo(user, repo string) {
 	wg.Add(1)
 	defer wg.Done()
@@ -162,7 +165,7 @@ func findFromRepo(user, repo string) {
 	// regular expression pattern
 	reg := regexp.MustCompile(`"(email)":"([^"]+)"`)
 	stringArr := unique(reg.FindAllString(string(byteBody), -1))
-	for i := 0; i< len(stringArr); i++ {	
+	for i := 0; i < len(stringArr); i++ {
 		tmp := strings.ReplaceAll(stringArr[i], `"email":"`, "")
 		mutex.Lock()
 		emailFromRepos = appendIfMissing(emailFromRepos, tmp[:len(tmp)-1])
@@ -174,7 +177,7 @@ func findFromRepo(user, repo string) {
 func appendIfMissing(slice []string, i string) []string {
 	for _, ele := range slice {
 		if ele == i {
-				return slice
+			return slice
 		}
 	}
 	return append(slice, i)
